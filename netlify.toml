@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirection SPA : toute route inconnue renvoie index.html
+# (sinon un rechargement direct sur /suivi renvoie un 404)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
