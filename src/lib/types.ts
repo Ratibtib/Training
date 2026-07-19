@@ -50,3 +50,37 @@ export interface Mesure {
   valeur: number
   jour: string
 }
+
+export interface SerieRealisee {
+  id: string
+  seance_real_id: string
+  exo_planifie_id: string
+  ordre: number
+  reps: number | null
+  charge: number | null
+  duree_s: number | null
+}
+
+export interface SeanceRealisee {
+  id: string
+  planifiee_id: string
+  fait_le: string
+  ressenti: number | null
+  note: string | null
+  series_realisees?: SerieRealisee[]
+}
+
+export interface Programme {
+  id: string
+  nom: string
+  objectif: string | null
+}
+
+export interface Bloc {
+  id: string
+  nom: string
+  intention: string | null
+  debut: string | null
+  fin: string | null
+  ordre: number
+}
