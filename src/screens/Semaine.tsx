@@ -42,12 +42,12 @@ export function Semaine({ onOpenDay }: { onOpenDay: () => void }) {
 
       {loading ? <div className="boot">Chargement…</div> : days.map(d => (
         <div key={d.jour}
-          className={'day' + (d.jour === today ? ' now' : '') + (d.sessions.length === 0 ? ' rest' : '')}
+          className={'day' + (d.jour === today ? ' now' : '')}
           onClick={() => { setRefDate(d.jour); onOpenDay() }}>
           <div className="day-col"><span className="dd">{d.label}</span><span className="dn">{d.num}</span></div>
           <div className="day-slots">
             {d.sessions.length === 0 ? (
-              <div className="slot rest-slot">Repos</div>
+              <div className="slot">Repos</div>
             ) : d.sessions.map(s => (
               <div key={s.id} className="slot">
                 <div>

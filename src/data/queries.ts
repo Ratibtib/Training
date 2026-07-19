@@ -159,3 +159,60 @@ export async function saveRessenti(fatigue: number | null, forme: number | null,
   const { error } = await supabase.from('ressentis').insert({ fatigue, forme, jour })
   if (error) console.error(error); return !error
 }
+
+// ================= OBJECTIFS (Bloc D) =================
+
+export interface Cible {
+  id: string
+  indicateur: string
+  exercice_id: string | null
+  valeur: number
+  unite: string | null
+  sens: 'hausse' | 'baisse'
+  type: 'phase' | 'horizon'
+  echeance: string | null
+}
+
+export async function getCibles(): Promise<Cible[]> {
+  const { data, error } = await supabase
+    .from('cibles').select('id, indicateur, exercice_id, valeur, unite, sens, type, echeance')
+    .eq('actif', true)
+  if (error) { console.error(error); return [] }
+  return (data ?? []) as Cible[]
+}
+
+// ================= HISTORIQUE (Bloc E) =================
+
+export interface HistoItem {
+  id: string
+  fait_le: string
+  ressenti: number | null
+  note: string | null
+  seance: { nom: string; nature: string; jour: string; statut: string } | null
+  nbSeries: number
+}
+
+export async function getHistorique(): Promise<HistoItem[]> {
+  const { data, error } = await supabase
+    .from('seances_realisees')
+    .select('id, fait_le, ressenti, note, series_realisees(id), seances_planifiees(nom, nature, jour, statut)')
+    .order('fait_le', { ascending: false })
+    .limit(50)
+  if (error) { console.error(error); return [] }
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    fait_le: r.fait_le,
+    ressenti: r.ressenti,
+    note: r.note,
+    seance: r.seances_planifiees ?? null,
+    nbSeries: r.series_realisees?.length ?? 0
+  })) as HistoItem[]
+}
+
+// Programme actif (pour l'en-tête de l'historique)
+export async function getActiveProgramme(): Promise<{ id: string; nom: string } | null> {
+  const { data, error } = await supabase
+    .from('programmes').select('id, nom').eq('actif', true).order('ordre').limit(1).maybeSingle()
+  if (error) { console.error(error); return null }
+  return (data as { id: string; nom: string }) ?? null
+}

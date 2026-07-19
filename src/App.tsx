@@ -3,6 +3,8 @@ import { useAuth } from './auth/AuthProvider'
 import { Login } from './auth/Login'
 import { Programme } from './screens/Programme'
 import { Suivi } from './screens/Suivi'
+import { Objectifs } from './screens/Objectifs'
+import { Historique } from './screens/Historique'
 import { TabBar, type Tab } from './components/TabBar'
 
 export default function App() {
@@ -17,6 +19,8 @@ export default function App() {
       <div className="app-body">
         {tab === 'programme' && <Programme />}
         {tab === 'suivi' && <Suivi />}
+        {tab === 'objectifs' && <Objectifs />}
+        {tab === 'histo' && <Historique />}
       </div>
       <TabBar tab={tab} onChange={setTab} />
     </div>
