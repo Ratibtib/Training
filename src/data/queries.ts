@@ -216,3 +216,66 @@ export async function getActiveProgramme(): Promise<{ id: string; nom: string } 
   if (error) { console.error(error); return null }
   return (data as { id: string; nom: string }) ?? null
 }
+
+// ================= ÉVOLUTION (Bloc G) =================
+
+export interface PointSerie { jour: string; valeur: number }
+export interface ExoProgress {
+  exercice_id: string
+  nom: string
+  unite: string
+  nbSeances: number
+  points: PointSerie[]   // meilleure valeur par jour (charge, ou reps si pas de charge, ou durée)
+}
+
+// Courbe de poids (déjà: getWeightSeries renvoie les mesures)
+// -> on la réutilise côté écran.
+
+// Progression par exercice, calculée depuis le réalisé.
+// Pour chaque exo réalisé : on prend, par jour, la meilleure série
+// (charge max, sinon reps max, sinon durée max).
+export async function getExoProgressions(): Promise<ExoProgress[]> {
+  const { data, error } = await supabase
+    .from('series_realisees')
+    .select('reps, charge, duree_s, exos_planifies(exercice_id, exercices(nom, unite)), seances_realisees(fait_le, seances_planifiees(jour))')
+  if (error) { console.error(error); return [] }
+
+  // regroupe par exercice_id
+  const map = new Map<string, ExoProgress & { byDay: Map<string, number> }>()
+
+  for (const row of (data ?? []) as any[]) {
+    const exo = row.exos_planifies
+    const exId = exo?.exercice_id
+    if (!exId) continue
+    const nom = exo?.exercices?.nom ?? 'Exercice'
+    const unite = exo?.exercices?.unite ?? 'reps_charge'
+    const jour = row.seances_realisees?.seances_planifiees?.jour
+      ?? (row.seances_realisees?.fait_le ?? '').slice(0, 10)
+    if (!jour) continue
+
+    // valeur représentative de la série
+    const val = row.charge != null ? Number(row.charge)
+      : row.reps != null ? Number(row.reps)
+      : row.duree_s != null ? Number(row.duree_s)
+      : null
+    if (val == null) continue
+
+    if (!map.has(exId)) {
+      map.set(exId, { exercice_id: exId, nom, unite, nbSeances: 0, points: [], byDay: new Map() })
+    }
+    const e = map.get(exId)!
+    const prev = e.byDay.get(jour)
+    if (prev == null || val > prev) e.byDay.set(jour, val)
+  }
+
+  const out: ExoProgress[] = []
+  for (const e of map.values()) {
+    const points = [...e.byDay.entries()]
+      .map(([jour, valeur]) => ({ jour, valeur }))
+      .sort((a, b) => a.jour.localeCompare(b.jour))
+    out.push({ exercice_id: e.exercice_id, nom: e.nom, unite: e.unite, nbSeances: points.length, points })
+  }
+  // les plus travaillés d'abord
+  out.sort((a, b) => b.nbSeances - a.nbSeances)
+  return out
+}
