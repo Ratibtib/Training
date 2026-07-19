@@ -1,41 +1,60 @@
 import { useEffect, useRef, useState } from 'react'
 
 // Chrono de récup au niveau de l'exercice, réutilisable série après série.
-// `seconds` = temps de récup prévu (déduit de la cible, défaut 90s).
+// Bips : court à 10s, puis à 5/4/3/2/1s, et un gros bip grave à 0.
 export function RestTimer({ seconds }: { seconds: number }) {
   const [remaining, setRemaining] = useState(seconds)
   const [running, setRunning] = useState(false)
   const tick = useRef<ReturnType<typeof setInterval> | null>(null)
+  const audioCtx = useRef<AudioContext | null>(null)
 
   useEffect(() => () => { if (tick.current) clearInterval(tick.current) }, [])
 
-  function beep() {
+  function getCtx(): AudioContext | null {
     try {
-      const Ctx = (window.AudioContext || (window as any).webkitAudioContext)
-      if (!Ctx) return
-      const ctx = new Ctx()
-      const o = ctx.createOscillator(); const g = ctx.createGain()
-      o.connect(g); g.connect(ctx.destination)
-      o.frequency.value = 880; o.type = 'sine'
-      g.gain.setValueAtTime(0.001, ctx.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-      o.start(); o.stop(ctx.currentTime + 0.5)
-    } catch { /* silencieux si audio indisponible */ }
+      if (!audioCtx.current) {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext
+        if (!Ctx) return null
+        audioCtx.current = new Ctx()
+      }
+      // certains navigateurs suspendent le contexte tant qu'on n'a pas interagi
+      if (audioCtx.current.state === 'suspended') audioCtx.current.resume()
+      return audioCtx.current
+    } catch { return null }
   }
 
+  // bip paramétrable : fréquence (grave/aigu), durée, volume
+  function beep(freq: number, dur: number, vol = 0.35) {
+    const ctx = getCtx(); if (!ctx) return
+    const o = ctx.createOscillator(); const g = ctx.createGain()
+    o.connect(g); g.connect(ctx.destination)
+    o.type = 'sine'; o.frequency.value = freq
+    const t = ctx.currentTime
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    o.start(t); o.stop(t + dur + 0.02)
+  }
+
+  const vibrate = (ms: number | number[]) => { if (navigator.vibrate) navigator.vibrate(ms) }
+  const bipCourt = () => { beep(880, 0.12, 0.3); vibrate(80) }        // aigu + courte vibration
+  const bipFin = () => { beep(440, 0.5, 0.5); vibrate([120, 60, 250]) } // grave, long + vibration marquée
+
   function start() {
+    getCtx() // débloque l'audio sur le tap
     setRemaining(seconds); setRunning(true)
     if (tick.current) clearInterval(tick.current)
     tick.current = setInterval(() => {
       setRemaining(r => {
-        if (r <= 1) {
+        const next = r - 1
+        if (next === 10) bipCourt()
+        else if (next <= 5 && next >= 1) bipCourt()
+        else if (next <= 0) {
           if (tick.current) clearInterval(tick.current)
-          setRunning(false); beep()
-          if (navigator.vibrate) navigator.vibrate(200)
+          setRunning(false); bipFin()
           return 0
         }
-        return r - 1
+        return next
       })
     }, 1000)
   }
@@ -48,9 +67,10 @@ export function RestTimer({ seconds }: { seconds: number }) {
   const mm = Math.floor(remaining / 60)
   const ss = String(remaining % 60).padStart(2, '0')
   const done = remaining === 0
+  const soon = running && remaining <= 5
 
   return (
-    <div className={'rest' + (running ? ' running' : '') + (done ? ' done' : '')}
+    <div className={'rest' + (running ? ' running' : '') + (done ? ' done' : '') + (soon ? ' soon' : '')}
       onClick={running ? stop : start}>
       <span className="rest-clock">{mm}:{ss}</span>
       <span className="rest-lbl">

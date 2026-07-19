@@ -401,3 +401,7 @@ body{font-family:var(--f-body);background:var(--surface);color:var(--ink);line-h
 .exo-new .m-in{margin-bottom:7px}
 .exo-new .m-line{margin:0}
 .exo-new .m-line .m-save,.exo-new .m-line .m-cancel{flex-shrink:0}
+
+/* ---- Chrono : dernières secondes ---- */
+.rest.soon{animation:restpulse .5s ease-in-out infinite alternate}
+@keyframes restpulse{from{filter:brightness(1)}to{filter:brightness(1.25)}}
