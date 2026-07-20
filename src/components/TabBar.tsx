@@ -1,10 +1,9 @@
-export type Tab = 'programme' | 'suivi' | 'evolution' | 'objectifs' | 'histo' | 'admin'
+export type Tab = 'programme' | 'suivi' | 'evolution' | 'histo' | 'admin'
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'programme', icon: '🏋', label: 'Prog.' },
   { id: 'suivi', icon: '📝', label: 'Suivi' },
   { id: 'evolution', icon: '📈', label: 'Évol.' },
-  { id: 'objectifs', icon: '🎯', label: 'Cibles' },
   { id: 'histo', icon: '🕑', label: 'Histo' },
   { id: 'admin', icon: '⚙️', label: 'Admin' }
 ]

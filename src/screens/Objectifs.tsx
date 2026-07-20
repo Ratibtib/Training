@@ -29,9 +29,7 @@ export function Objectifs() {
   const horizon = cibles.filter(c => c.type === 'horizon')
 
   return (
-    <div className="screen">
-      <div className="appbar"><div className="eyebrow">Objectifs</div></div>
-
+    <>
       {phase.length > 0 && <div className="section-label">Cibles de phase</div>}
       {phase.map(c => <Lane key={c.id} cible={c} pos={c.indicateur === 'poids' ? poids : null} />)}
 
@@ -39,7 +37,7 @@ export function Objectifs() {
       {horizon.map(c => <Lane key={c.id} cible={c} pos={null} />)}
 
       {cibles.length === 0 && <div className="empty">Aucun objectif défini pour le moment.</div>}
-    </div>
+    </>
   )
 }
 

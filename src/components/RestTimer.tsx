@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Chrono de récup au niveau de l'exercice, réutilisable série après série.
-// Bips : court à 10s, puis à 5/4/3/2/1s, et un gros bip grave à 0.
+// Chrono de récup — triple signal : son perçant + vibration + flash visuel.
+// Bips à 10s puis 5/4/3/2/1s, gros signal à 0.
 export function RestTimer({ seconds }: { seconds: number }) {
   const [remaining, setRemaining] = useState(seconds)
   const [running, setRunning] = useState(false)
+  const [flash, setFlash] = useState(false)
   const tick = useRef<ReturnType<typeof setInterval> | null>(null)
   const audioCtx = useRef<AudioContext | null>(null)
 
@@ -17,19 +18,18 @@ export function RestTimer({ seconds }: { seconds: number }) {
         if (!Ctx) return null
         audioCtx.current = new Ctx()
       }
-      // certains navigateurs suspendent le contexte tant qu'on n'a pas interagi
       if (audioCtx.current.state === 'suspended') audioCtx.current.resume()
       return audioCtx.current
     } catch { return null }
   }
 
-  // bip paramétrable : fréquence (grave/aigu), durée, volume
-  function beep(freq: number, dur: number, vol = 0.35) {
+  // bip d'origine (onde sine), volume augmenté
+  function beep(freq: number, dur: number, vol = 1) {
     const ctx = getCtx(); if (!ctx) return
+    const t = ctx.currentTime
     const o = ctx.createOscillator(); const g = ctx.createGain()
     o.connect(g); g.connect(ctx.destination)
     o.type = 'sine'; o.frequency.value = freq
-    const t = ctx.currentTime
     g.gain.setValueAtTime(0.0001, t)
     g.gain.exponentialRampToValueAtTime(vol, t + 0.02)
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
@@ -37,11 +37,14 @@ export function RestTimer({ seconds }: { seconds: number }) {
   }
 
   const vibrate = (ms: number | number[]) => { if (navigator.vibrate) navigator.vibrate(ms) }
-  const bipCourt = () => { beep(880, 0.12, 0.3); vibrate(80) }        // aigu + courte vibration
-  const bipFin = () => { beep(440, 0.5, 0.5); vibrate([120, 60, 250]) } // grave, long + vibration marquée
+  const bipCourt = () => { beep(980, 0.12, 1); vibrate(120) }
+  const bipFin = () => {
+    beep(640, 0.5, 1); vibrate([200, 80, 400])
+    setFlash(true); setTimeout(() => setFlash(false), 900)
+  }
 
   function start() {
-    getCtx() // débloque l'audio sur le tap
+    getCtx()
     setRemaining(seconds); setRunning(true)
     if (tick.current) clearInterval(tick.current)
     tick.current = setInterval(() => {
@@ -70,7 +73,7 @@ export function RestTimer({ seconds }: { seconds: number }) {
   const soon = running && remaining <= 5
 
   return (
-    <div className={'rest' + (running ? ' running' : '') + (done ? ' done' : '') + (soon ? ' soon' : '')}
+    <div className={'rest' + (running ? ' running' : '') + (done ? ' done' : '') + (soon ? ' soon' : '') + (flash ? ' flash' : '')}
       onClick={running ? stop : start}>
       <span className="rest-clock">{mm}:{ss}</span>
       <span className="rest-lbl">

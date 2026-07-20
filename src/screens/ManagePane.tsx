@@ -6,6 +6,7 @@ import {
 import type { Bloc } from '../lib/types'
 import { todayISO, addDays } from '../lib/dates'
 import { ExoEditor } from './ExoEditor'
+import { NouvelleSeanceForm } from './NouvelleSeanceForm'
 
 const NATURE_ICON: Record<string, string> = {
   muscu: '🏋', course: '🏃', velo: '🚴', basket: '🏀', mobilite: '🧘', autre: '•'
@@ -48,6 +49,7 @@ export function ManagePane() {
 
       {seances && (
         <>
+          <NouvelleSeanceForm onCreated={charger} />
           <div className="section-label">Séances ({seances.length})</div>
           {seances.length === 0 && <div className="empty">Aucune séance sur la période.</div>}
           {seances.map(s => <SeanceRow key={s.id} s={s} onChange={charger} />)}
@@ -78,22 +80,13 @@ function SeanceRow({ s, onChange }: { s: ManagedSeance; onChange: () => void }) 
     setEdit(false); onChange()
   }
   async function del() {
-    if (!confirm(`Supprimer la séance "${s.nom}" du ${s.jour} ?`)) return
+    const avert = s.hasRealise
+      ? `⚠️ La séance "${s.nom}" du ${s.jour} contient des DONNÉES RÉALISÉES (séries saisies, ressenti) qui seront DÉFINITIVEMENT perdues.\n\nSupprimer quand même ?`
+      : `Supprimer la séance "${s.nom}" du ${s.jour} ?`
+    if (!confirm(avert)) return
     const ok = await deleteSeance(s.id)
-    if (!ok) alert('Impossible : séance protégée (réalisée).')
+    if (!ok) alert('Erreur à la suppression — réessaie.')
     onChange()
-  }
-
-  if (s.hasRealise) {
-    return (
-      <div className="mrow locked">
-        <div className="mrow-main">
-          <div className="mrow-nm">{NATURE_ICON[s.nature] ?? '•'} {s.nom}</div>
-          <div className="mrow-mt">{s.jour} · réalisée</div>
-        </div>
-        <span className="mrow-lock">protégée</span>
-      </div>
-    )
   }
 
   if (edit) {
@@ -119,8 +112,9 @@ function SeanceRow({ s, onChange }: { s: ManagedSeance; onChange: () => void }) 
       <div className="mrow">
         <div className="mrow-main">
           <div className="mrow-nm">{NATURE_ICON[s.nature] ?? '•'} {s.nom}</div>
-          <div className="mrow-mt">{s.jour} · {s.etiquette}</div>
+          <div className="mrow-mt">{s.jour} · {s.etiquette}{s.hasRealise ? ' · réalisée' : ''}</div>
         </div>
+        {s.hasRealise && <span className="mrow-real">●</span>}
         <button className={'m-edit' + (showExos ? ' on' : '')} onClick={() => setShowExos(v => !v)}>Exos</button>
         <button className="m-edit" onClick={() => setEdit(true)}>Éditer</button>
         <button className="m-del" onClick={del}>✕</button>

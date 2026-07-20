@@ -92,18 +92,41 @@ export async function saveRealizedSeries(planifieeId: string, series: SerieInput
   return true
 }
 
+// Termine une séance. Le statut est déduit automatiquement :
+// - toutes les séries prévues cochées  -> 'faite'
+// - au moins une cochée, mais pas toutes -> 'partielle'
+// - aucune cochée -> 'partielle' aussi (séance ouverte mais vide ; on ne met jamais
+//   'faite' à tort). Passe seriesPrevues=0 pour forcer 'faite' (séances sans séries).
 export async function terminerSeance(
-  planifieeId: string, ressenti: number | null, note: string | null
+  planifieeId: string, ressenti: number | null, note: string | null,
+  seriesPrevues = 0, seriesFaites = 0
 ): Promise<boolean> {
   const seanceRealId = await ensureSeanceRealisee(planifieeId)
   if (!seanceRealId) return false
+  const statut = (seriesPrevues > 0 && seriesFaites < seriesPrevues) ? 'partielle' : 'faite'
   const u1 = await supabase.from('seances_realisees')
     .update({ ressenti, note, fait_le: new Date().toISOString() }).eq('id', seanceRealId)
   const u2 = await supabase.from('seances_planifiees')
-    .update({ statut: 'faite' }).eq('id', planifieeId)
+    .update({ statut }).eq('id', planifieeId)
   if (u1.error) console.error(u1.error)
   if (u2.error) console.error(u2.error)
   return !u1.error && !u2.error
+}
+
+// Marque une séance planifiée comme "sautée" (non faite). Réversible.
+export async function marquerSautee(planifieeId: string): Promise<boolean> {
+  const { error } = await supabase.from('seances_planifiees')
+    .update({ statut: 'sautee' }).eq('id', planifieeId)
+  if (error) console.error(error)
+  return !error
+}
+
+// Réinitialise une séance sautée en "à venir".
+export async function reactiverSeance(planifieeId: string): Promise<boolean> {
+  const { error } = await supabase.from('seances_planifiees')
+    .update({ statut: 'a_venir' }).eq('id', planifieeId)
+  if (error) console.error(error)
+  return !error
 }
 
 // ================= SUIVI : POIDS =================

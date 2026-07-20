@@ -9,7 +9,7 @@ type Onglet = 'import' | 'export' | 'gerer'
 
 export function Admin() {
   const { signOut } = useAuth()
-  const [ong, setOng] = useState<Onglet>('import')
+  const [ong, setOng] = useState<Onglet>('gerer')
 
   return (
     <div className="screen">
@@ -19,9 +19,9 @@ export function Admin() {
       </div>
 
       <div className="seg">
-        <button className={'seg-btn' + (ong === 'import' ? ' on' : '')} onClick={() => setOng('import')}>Import</button>
-        <button className={'seg-btn' + (ong === 'export' ? ' on' : '')} onClick={() => setOng('export')}>Export</button>
         <button className={'seg-btn' + (ong === 'gerer' ? ' on' : '')} onClick={() => setOng('gerer')}>Gérer</button>
+        <button className={'seg-btn' + (ong === 'export' ? ' on' : '')} onClick={() => setOng('export')}>Export</button>
+        <button className={'seg-btn' + (ong === 'import' ? ' on' : '')} onClick={() => setOng('import')}>Import</button>
       </div>
 
       {ong === 'import' && <ImportPane />}

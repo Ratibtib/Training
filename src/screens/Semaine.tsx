@@ -56,8 +56,15 @@ export function Semaine({ onOpenDay }: { onOpenDay: () => void }) {
                     {s.duree_min ? `~${s.duree_min} min` : ''}{s.etiquette === 'option' ? ' · option' : ''}
                   </div>
                 </div>
-                <div className={'pill ' + (s.statut === 'faite' ? 'ok' : s.etiquette === 'fixe' ? 'fix' : 'opt')}>
-                  {s.statut === 'faite' ? 'Fait' : s.etiquette === 'fixe' ? 'Fixe' : 'Option'}
+                <div className={'pill ' + (
+                  s.statut === 'faite' ? 'ok'
+                    : s.statut === 'partielle' ? 'part'
+                    : s.statut === 'sautee' ? 'skip'
+                    : s.etiquette === 'fixe' ? 'fix' : 'opt')}>
+                  {s.statut === 'faite' ? 'Fait'
+                    : s.statut === 'partielle' ? 'Partiel'
+                    : s.statut === 'sautee' ? 'Sauté'
+                    : s.etiquette === 'fixe' ? 'Fixe' : 'Option'}
                 </div>
               </div>
             ))}

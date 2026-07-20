@@ -40,9 +40,9 @@ export async function updateSeanceMeta(
 }
 
 // Supprime une séance (cascade sur ses exos). Refuse si réalisé.
+// Supprime une séance (cascade sur ses exos ET son réalisé éventuel).
+// Édition MANUELLE : aucune protection — l'utilisateur décide (ménage, séances test).
 export async function deleteSeance(id: string): Promise<boolean> {
-  const check = await supabase.from('seances_realisees').select('id').eq('planifiee_id', id).limit(1)
-  if ((check.data?.length ?? 0) > 0) return false
   const { error } = await supabase.from('seances_planifiees').delete().eq('id', id)
   if (error) console.error(error)
   return !error
@@ -159,6 +159,27 @@ export async function addExoToSeance(
 export async function createExercice(nom: string, unite: string): Promise<string | null> {
   const { data, error } = await supabase.from('exercices')
     .insert({ nom, unite, categorie: null }).select('id').single()
+  if (error) { console.error(error); return null }
+  return data.id
+}
+
+// ============================================================
+//  Création d'une séance à la volée (Admin/Gérer)
+// ============================================================
+
+export interface NouvelleSeance {
+  nom: string
+  nature: string
+  jour: string
+  etiquette: string
+  duree_min: number | null
+}
+
+export async function createSeance(s: NouvelleSeance): Promise<string | null> {
+  const { data, error } = await supabase.from('seances_planifiees').insert({
+    modele_id: null, nom: s.nom, nature: s.nature, jour: s.jour,
+    etiquette: s.etiquette, statut: 'a_venir', duree_min: s.duree_min
+  }).select('id').single()
   if (error) { console.error(error); return null }
   return data.id
 }

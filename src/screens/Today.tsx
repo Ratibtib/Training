@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   getSessionForDay, getRealizedForSeance,
-  saveRealizedSeries, terminerSeance, type SerieInput
+  saveRealizedSeries, terminerSeance, marquerSautee, type SerieInput
 } from '../data/queries'
 import type { SeancePlanifiee, ExoPlanifie } from '../lib/types'
 import { useRefDate } from '../context/DateContext'
@@ -16,25 +16,35 @@ const NATURE_ICON: Record<string, string> = {
 type Serie = { reps: string; charge: string; duree: string; done: boolean }
 type SessionState = Record<string, Serie[]>
 
-const nbSeries = (exo: ExoPlanifie) => exo.cible?.series ?? 1
+const nbSeries = (exo: ExoPlanifie) => {
+  const sd = (exo.cible as any)?.series_detail
+  if (Array.isArray(sd) && sd.length) return sd.length
+  return exo.cible?.series ?? 1
+}
 const isTemps = (exo: ExoPlanifie) => exo.cible?.duree_s != null || exo.exercices?.unite === 'temps'
 const hasCharge = (exo: ExoPlanifie) => exo.cible?.charge != null
 const recupSec = (exo: ExoPlanifie) => (exo.cible as any)?.recup_s ?? 90
 
-function prefill(exo: ExoPlanifie): Serie {
-  const c = exo.cible
+function prefill(exo: ExoPlanifie, i = 0): Serie {
+  const c: any = exo.cible ?? {}
+  const sd = Array.isArray(c.series_detail) ? c.series_detail[i] : null
   return {
-    reps: c?.reps != null ? String(c.reps) : '',
-    charge: c?.charge != null ? String(c.charge) : '',
-    duree: c?.duree_s != null ? String(c.duree_s) : '',
+    reps: sd?.reps != null ? String(sd.reps) : (c.reps != null ? String(c.reps) : ''),
+    charge: sd?.charge != null ? String(sd.charge) : (c.charge != null ? String(c.charge) : ''),
+    duree: c.duree_s != null ? String(c.duree_s) : '',
     done: false
   }
 }
 
-// Prévu par série, affiché à côté de la saisie
-function prevuSerie(exo: ExoPlanifie): string {
-  const c = exo.cible
+// Prévu par série, affiché à côté de la saisie (index-aware pour pyramides)
+function prevuSerie(exo: ExoPlanifie, i = 0): string {
+  const c: any = exo.cible
   if (!c) return ''
+  const sd = Array.isArray(c.series_detail) ? c.series_detail[i] : null
+  if (sd) {
+    if (sd.charge != null) return `${sd.reps ?? '?'} × ${sd.charge} kg`
+    if (sd.reps != null) return `${sd.reps} reps`
+  }
   if (c.objectif) return c.objectif
   if (c.duree_s) return `${c.duree_s}s`
   if (c.charge != null) return `${c.reps ?? '?'} × ${c.charge} kg`
@@ -44,9 +54,11 @@ function prevuSerie(exo: ExoPlanifie): string {
 
 // Résumé de l'exo quand il est replié
 function resumeExo(exo: ExoPlanifie): string {
-  const c = exo.cible
+  const c: any = exo.cible
   const parts: string[] = []
-  if (c?.series) parts.push(`${c.series} séries`)
+  const sd = Array.isArray(c?.series_detail) ? c.series_detail : null
+  if (sd && sd.length) parts.push(`${sd.length} séries (${sd.map((x: any) => x.reps ?? '?').join('/')})`)
+  else if (c?.series) parts.push(`${c.series} séries`)
   const recup = recupSec(exo)
   if (recup) {
     const m = Math.floor(recup / 60), s = recup % 60
@@ -80,7 +92,7 @@ export function Today() {
       if (s) {
         const init: SessionState = {}
         for (const exo of s.exos_planifies ?? []) {
-          init[exo.id] = Array.from({ length: nbSeries(exo) }, () => prefill(exo))
+          init[exo.id] = Array.from({ length: nbSeries(exo) }, (_, i) => prefill(exo, i))
         }
         const realized = await getRealizedForSeance(s.id)
         if (cancelled) return
@@ -181,8 +193,7 @@ export function Today() {
             const doneCount = series.filter(s => s.done).length
             const allDone = series.length > 0 && doneCount === series.length
             const isOpen = open[exo.id] ?? false
-            const prevu = prevuSerie(exo)
-
+            
             return (
               <div key={exo.id} className={'exo card' + (allDone ? ' on' : '')}>
                 {/* En-tête cliquable (repli/dépli) */}
@@ -208,7 +219,7 @@ export function Today() {
                       {series.map((s, i) => (
                         <div key={i} className={'serie' + (s.done ? ' on' : '')}>
                           <span className="sidx">S{i + 1}</span>
-                          <span className="prevu">{prevu}</span>
+                          <span className="prevu">{prevuSerie(exo, i)}</span>
                           <div className="saisie">
                             {temps ? (
                               <label className="fld">
@@ -260,11 +271,25 @@ export function Today() {
             <button className="primary"
               onClick={async () => {
                 if (saveTimer.current) clearTimeout(saveTimer.current)
-                await saveRealizedSeries(seance.id, collectDone(state))
-                const ok = await terminerSeance(seance.id, ressenti, null)
-                alert(ok ? 'Séance enregistrée ✓' : 'Souci à l’enregistrement — réessaie.')
+                const done = collectDone(state)
+                await saveRealizedSeries(seance.id, done)
+                // total de séries prévues (sur les exos qui ont des séries)
+                const prevues = Object.values(state).reduce((n, arr) => n + arr.length, 0)
+                const ok = await terminerSeance(seance.id, ressenti, null, prevues, done.length)
+                const complet = !(prevues > 0 && done.length < prevues)
+                alert(ok
+                  ? (complet ? 'Séance enregistrée ✓' : `Séance enregistrée en partiel (${done.length}/${prevues} séries) ✓`)
+                  : 'Souci à l’enregistrement — réessaie.')
               }}>
               Terminer la séance
+            </button>
+            <button className="skip-btn"
+              onClick={async () => {
+                if (!confirm('Marquer cette séance comme sautée (non faite) ?')) return
+                const ok = await marquerSautee(seance.id)
+                alert(ok ? 'Séance marquée sautée.' : 'Erreur — réessaie.')
+              }}>
+              Marquer comme sautée
             </button>
           </div>
         </>

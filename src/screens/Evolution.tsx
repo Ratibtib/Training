@@ -33,9 +33,7 @@ export function Evolution() {
   const autres = exos.filter(e => !top.some(t => t.exercice_id === e.exercice_id))
 
   return (
-    <div className="screen">
-      <div className="appbar"><div className="eyebrow">Évolution</div></div>
-
+    <>
       <div className="section-label">Poids</div>
       <div className="evo-card">
         {poidsPts.length === 0 ? (
@@ -88,6 +86,6 @@ export function Evolution() {
           )}
         </>
       )}
-    </div>
+    </>
   )
 }

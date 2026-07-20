@@ -3,8 +3,7 @@ import { useAuth } from './auth/AuthProvider'
 import { Login } from './auth/Login'
 import { Programme } from './screens/Programme'
 import { Suivi } from './screens/Suivi'
-import { Evolution } from './screens/Evolution'
-import { Objectifs } from './screens/Objectifs'
+import { Progression } from './screens/Progression'
 import { Historique } from './screens/Historique'
 import { Admin } from './screens/Admin'
 import { TabBar, type Tab } from './components/TabBar'
@@ -21,8 +20,7 @@ export default function App() {
       <div className="app-body">
         {tab === 'programme' && <Programme />}
         {tab === 'suivi' && <Suivi />}
-        {tab === 'evolution' && <Evolution />}
-        {tab === 'objectifs' && <Objectifs />}
+        {tab === 'evolution' && <Progression />}
         {tab === 'histo' && <Historique />}
         {tab === 'admin' && <Admin />}
       </div>
