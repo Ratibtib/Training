@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import {
   getWeightForDay, getLatestWeight, saveWeight,
-  getRessentiForDay, saveRessenti
+  getRessentiForDay, saveRessenti,
+  getSommeilForDay, saveSommeil, dureeSommeil
 } from '../data/queries'
 import { useRefDate } from '../context/DateContext'
 import { todayISO, labelJour } from '../lib/dates'
@@ -16,6 +17,9 @@ export function Suivi() {
   const [wSaved, setWSaved] = useState(false)
   const [fatigue, setFatigue] = useState<number | null>(null)
   const [forme, setForme] = useState<number | null>(null)
+  const [coucher, setCoucher] = useState('')
+  const [reveil, setReveil] = useState('')
+  const [sSaved, setSSaved] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -28,6 +32,11 @@ export function Suivi() {
       const r = await getRessentiForDay(refDate)
       if (cancelled) return
       setFatigue(r?.fatigue ?? null); setForme(r?.forme ?? null)
+      const sm = await getSommeilForDay(refDate)
+      if (cancelled) return
+      setCoucher(sm?.heure_coucher?.slice(0, 5) ?? '')
+      setReveil(sm?.heure_reveil?.slice(0, 5) ?? '')
+      setSSaved(false)
       setLoaded(true)
     })()
     return () => { cancelled = true }
@@ -37,6 +46,10 @@ export function Suivi() {
   async function saveW() { const ok = await saveWeight(weight, refDate); setWSaved(ok) }
   async function pickFatigue(n: number) { setFatigue(n); await saveRessenti(n, forme, refDate) }
   async function pickForme(n: number) { setForme(n); await saveRessenti(fatigue, n, refDate) }
+  async function saveSleep() {
+    if (!coucher || !reveil) return
+    const ok = await saveSommeil(refDate, coucher, reveil); setSSaved(ok)
+  }
 
   const isToday = refDate === todayISO()
 
@@ -51,6 +64,22 @@ export function Suivi() {
 
       {!loaded ? <div className="boot">Chargement…</div> : (
         <>
+          <div className="section-label">Sommeil {isToday ? '' : 'de cette nuit'}</div>
+          <div className="sleep-card">
+            <div className="sleep-fields">
+              <label className="sleep-fld"><span>Couché (la veille)</span>
+                <input type="time" value={coucher} onChange={e => { setCoucher(e.target.value); setSSaved(false) }} /></label>
+              <label className="sleep-fld"><span>Réveil</span>
+                <input type="time" value={reveil} onChange={e => { setReveil(e.target.value); setSSaved(false) }} /></label>
+            </div>
+            {coucher && reveil && (
+              <div className="sleep-duree">{fmtDuree(dureeSommeil(coucher, reveil))} de sommeil</div>
+            )}
+            <button className="primary" disabled={!coucher || !reveil} onClick={saveSleep}>
+              {sSaved ? 'Enregistré ✓' : 'Enregistrer le sommeil'}
+            </button>
+          </div>
+
           <div className="section-label">Poids {isToday ? 'du jour' : 'de ce jour'}</div>
           <div className="weight-card">
             <div className="weight-now">{weight.toFixed(1)} <span>kg</span></div>
@@ -72,6 +101,12 @@ export function Suivi() {
       )}
     </div>
   )
+}
+
+function fmtDuree(h: number): string {
+  const heures = Math.floor(h)
+  const mins = Math.round((h - heures) * 60)
+  return mins ? `${heures}h${String(mins).padStart(2, '0')}` : `${heures}h`
 }
 
 function Scale({ label, left, right, value, onPick }: {

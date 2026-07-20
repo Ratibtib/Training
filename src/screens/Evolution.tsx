@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
-import { getWeightSeries, getExoProgressions, type ExoProgress } from '../data/queries'
+import { getWeightSeries, getExoProgressions, getSommeilSeries, type ExoProgress } from '../data/queries'
 import type { Mesure } from '../lib/types'
 import { LineChart } from '../components/LineChart'
 
+function fmtH(h: number): string {
+  const e = Math.floor(h), m = Math.round((h - e) * 60)
+  return m ? `${e}h${String(m).padStart(2, '0')}` : `${e}h`
+}
+
 export function Evolution() {
   const [poids, setPoids] = useState<Mesure[]>([])
+  const [sommeil, setSommeil] = useState<{ jour: string; valeur: number }[]>([])
   const [exos, setExos] = useState<ExoProgress[]>([])
   const [sel, setSel] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -12,7 +18,9 @@ export function Evolution() {
   useEffect(() => {
     (async () => {
       const [w, e] = await Promise.all([getWeightSeries(), getExoProgressions()])
-      setPoids(w); setExos(e); setLoading(false)
+      setPoids(w); setExos(e)
+      setSommeil(await getSommeilSeries())
+      setLoading(false)
     })()
   }, [])
 
@@ -49,6 +57,25 @@ export function Evolution() {
               )}
             </div>
             <LineChart points={poidsPts} unite="kg" />
+          </>
+        )}
+      </div>
+
+      <div className="section-label">Sommeil</div>
+      <div className="evo-card">
+        {sommeil.length === 0 ? (
+          <div className="chart-empty">Aucune nuit enregistrée.</div>
+        ) : (
+          <>
+            <div className="evo-head">
+              <div className="evo-now">{fmtH(sommeil[sommeil.length - 1].valeur)} <span>dernière nuit</span></div>
+              {sommeil.length >= 2 && (
+                <div className="evo-trend ok">
+                  moy. {fmtH(sommeil.reduce((s, p) => s + p.valeur, 0) / sommeil.length)}
+                </div>
+              )}
+            </div>
+            <LineChart points={sommeil} unite="h" />
           </>
         )}
       </div>

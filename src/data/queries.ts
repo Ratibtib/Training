@@ -302,3 +302,51 @@ export async function getExoProgressions(): Promise<ExoProgress[]> {
   out.sort((a, b) => b.nbSeances - a.nbSeances)
   return out
 }
+
+// ================= SUIVI : SOMMEIL =================
+
+export interface Sommeil {
+  jour: string
+  heure_coucher: string | null
+  heure_reveil: string | null
+  duree_h: number | null
+}
+
+// Calcule la durée (heures) entre coucher et réveil, en gérant le passage de minuit.
+export function dureeSommeil(coucher: string, reveil: string): number {
+  const [hc, mc] = coucher.split(':').map(Number)
+  const [hr, mr] = reveil.split(':').map(Number)
+  let mins = (hr * 60 + mr) - (hc * 60 + mc)
+  if (mins < 0) mins += 24 * 60          // le coucher était la veille
+  return Math.round((mins / 60) * 100) / 100
+}
+
+export async function getSommeilForDay(jour: string): Promise<Sommeil | null> {
+  const { data, error } = await supabase
+    .from('sommeil').select('jour, heure_coucher, heure_reveil, duree_h')
+    .eq('jour', jour).maybeSingle()
+  if (error) { console.error(error); return null }
+  return (data as Sommeil) ?? null
+}
+
+export async function saveSommeil(
+  jour: string, coucher: string, reveil: string
+): Promise<boolean> {
+  const duree_h = dureeSommeil(coucher, reveil)
+  const found = await supabase.from('sommeil').select('id').eq('jour', jour).maybeSingle()
+  const payload = { jour, heure_coucher: coucher, heure_reveil: reveil, duree_h }
+  if (found.data?.id) {
+    const { error } = await supabase.from('sommeil').update(payload).eq('id', found.data.id)
+    if (error) console.error(error); return !error
+  }
+  const { error } = await supabase.from('sommeil').insert(payload)
+  if (error) console.error(error); return !error
+}
+
+// Série de durées de sommeil (pour la courbe d'évolution)
+export async function getSommeilSeries(): Promise<{ jour: string; valeur: number }[]> {
+  const { data, error } = await supabase
+    .from('sommeil').select('jour, duree_h').not('duree_h', 'is', null).order('jour', { ascending: true })
+  if (error) { console.error(error); return [] }
+  return (data ?? []).map((r: any) => ({ jour: r.jour, valeur: Number(r.duree_h) }))
+}

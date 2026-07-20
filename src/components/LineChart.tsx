@@ -20,6 +20,8 @@ export function LineChart({ points, unite }: { points: Pt[]; unite?: string }) {
   const first = points[0].valeur, last = points[points.length - 1].valeur
   const fmt = (v: number) => unite === 's'
     ? `${Math.floor(v / 60)}'${String(Math.round(v % 60)).padStart(2, '0')}`
+    : unite === 'h'
+    ? `${Math.floor(v)}h${String(Math.round((v - Math.floor(v)) * 60)).padStart(2, '0')}`
     : `${Math.round(v * 10) / 10}`
 
   return (
