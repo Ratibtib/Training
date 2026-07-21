@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   getSessionForDay, getRealizedForSeance,
-  saveRealizedSeries, terminerSeance, marquerSautee, type SerieInput
+  saveRealizedSeries, terminerSeance, marquerSautee,
+  deplacerSeance, copierSeanceVierge, jourOccupe, type SerieInput
 } from '../data/queries'
 import type { SeancePlanifiee, ExoPlanifie } from '../lib/types'
 import { useRefDate } from '../context/DateContext'
@@ -36,7 +37,6 @@ function prefill(exo: ExoPlanifie, i = 0): Serie {
   }
 }
 
-// Prévu par série, affiché à côté de la saisie (index-aware pour pyramides)
 function prevuSerie(exo: ExoPlanifie, i = 0): string {
   const c: any = exo.cible
   if (!c) return ''
@@ -52,7 +52,6 @@ function prevuSerie(exo: ExoPlanifie, i = 0): string {
   return ''
 }
 
-// Résumé de l'exo quand il est replié
 function resumeExo(exo: ExoPlanifie): string {
   const c: any = exo.cible
   const parts: string[] = []
@@ -72,23 +71,20 @@ const num = (s: string): number | null => {
   return Number.isFinite(v) ? v : null
 }
 
-// reps -> entier (jamais de décimale qui casserait l'insert Postgres)
 const toInt = (s: string): number | null => {
   const v = num(s)
   return v == null ? null : Math.round(v)
 }
 
-// Durée saisie -> secondes entières. Tolère 75, 1:15, 1'15, 1,15, 1.15
 function parseDureeSec(raw: string): number | null {
   const s = raw.trim()
   if (!s) return null
-  const mmss = s.match(/^(\d+)\s*[:'′,.]\s*(\d{1,2})$/)   // mm<sep>ss
+  const mmss = s.match(/^(\d+)\s*[:'′,.]\s*(\d{1,2})$/)
   if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10)
-  const n = parseInt(s, 10)                                // sinon : secondes brutes
+  const n = parseInt(s, 10)
   return Number.isFinite(n) ? n : null
 }
 
-// Aperçu lisible sous le champ gainage (75 -> 1'15)
 function fmtDuree(raw: string): string {
   const sec = parseDureeSec(raw)
   if (sec == null) return 's'
@@ -97,18 +93,21 @@ function fmtDuree(raw: string): string {
 }
 
 export function Today() {
-  const { refDate } = useRefDate()
+  const { refDate, setRefDate } = useRefDate()
   const [seance, setSeance] = useState<SeancePlanifiee | null>(null)
   const [loading, setLoading] = useState(true)
   const [state, setState] = useState<SessionState>({})
-  const [open, setOpen] = useState<Record<string, boolean>>({})   // exos dépliés
+  const [open, setOpen] = useState<Record<string, boolean>>({})
   const [ressenti, setRessenti] = useState<number | null>(null)
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [moveOpen, setMoveOpen] = useState(false)
+  const [moveDate, setMoveDate] = useState(refDate)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true); setState({}); setOpen({}); setRessenti(null); setSaving('idle')
+    setMoveOpen(false); setMoveDate(refDate)
     ;(async () => {
       const s = await getSessionForDay(refDate)
       if (cancelled) return
@@ -149,7 +148,7 @@ export function Today() {
         out.push({
           exoPlanifieId: exoId, ordre,
           reps: s.reps ? toInt(s.reps) : null,
-          charge: s.charge ? num(s.charge) : null,      // kg peut être décimal (52.5)
+          charge: s.charge ? num(s.charge) : null,
           duree_s: s.duree ? parseDureeSec(s.duree) : null
         })
       })
@@ -172,10 +171,49 @@ export function Today() {
       const nextArr = prev[exoId].map((s, i) => i === idx ? { ...s, ...patch } : s)
       const next = { ...prev, [exoId]: nextArr }
       scheduleSave(next, seance.id)
-      // repli auto quand tout l'exo est validé
       if (nextArr.every(s => s.done)) setOpen(o => ({ ...o, [exoId]: false }))
       return next
     })
+  }
+
+  // A-t-on du réalisé sur cette séance ? (au moins une série cochée, ou statut réalisé)
+  function aDuRealise(): boolean {
+    if (seance?.statut === 'faite' || seance?.statut === 'partielle') return true
+    return Object.values(state).some(arr => arr.some(s => s.done))
+  }
+
+  async function faireDeplacement(mode: 'move' | 'copy') {
+    if (!seance) return
+    if (moveDate === seance.jour) { alert('Choisis une date différente.'); return }
+    // avertir si le jour d'arrivée est déjà occupé
+    if (await jourOccupe(moveDate, seance.id)) {
+      if (!confirm('Il y a déjà une séance ce jour-là. Continuer quand même ?')) return
+    }
+    let ok = false
+    if (mode === 'copy') ok = await copierSeanceVierge(seance.id, moveDate)
+    else ok = await deplacerSeance(seance.id, moveDate)
+    if (!ok) { alert('Erreur — réessaie.'); return }
+    setMoveOpen(false)
+    alert(mode === 'copy'
+      ? 'Copie vierge créée à la nouvelle date ✓'
+      : 'Séance déplacée ✓')
+    setRefDate(moveDate)  // on suit la séance vers sa nouvelle date
+  }
+
+  async function onDeplacerClick() {
+    if (!seance) return
+    if (!moveOpen) { setMoveOpen(true); return }
+    // panneau déjà ouvert : on agit selon le réalisé
+    if (aDuRealise()) {
+      const copier = confirm(
+        'Cette séance contient des données réalisées.\n\n' +
+        'OK = créer une COPIE VIERGE à refaire (l’originale reste intacte)\n' +
+        'Annuler = DÉPLACER la séance avec ses données'
+      )
+      await faireDeplacement(copier ? 'copy' : 'move')
+    } else {
+      await faireDeplacement('move')
+    }
   }
 
   const isToday = refDate === todayISO()
@@ -199,6 +237,7 @@ export function Today() {
                 {seance.duree_min ? `~${seance.duree_min} min` : ''}
                 {seance.etiquette === 'fixe' ? ' · fixe' : ' · option'}
                 {seance.statut === 'faite' ? ' · fait ✓' : ''}
+                {seance.statut === 'partielle' ? ' · partiel' : ''}
                 {saving === 'saving' && ' · sauvegarde…'}
                 {saving === 'saved' && ' · enregistré ✓'}
               </div>
@@ -220,7 +259,6 @@ export function Today() {
 
             return (
               <div key={exo.id} className={'exo card' + (allDone ? ' on' : '')}>
-                {/* En-tête cliquable (repli/dépli) */}
                 <button className="exo-toggle" onClick={() => setOpen(o => ({ ...o, [exo.id]: !o[exo.id] }))}>
                   <div className="exo-left">
                     <div className="exo-name">{exo.exercices?.nom ?? 'Exercice'}</div>
@@ -297,7 +335,6 @@ export function Today() {
                 if (saveTimer.current) clearTimeout(saveTimer.current)
                 const done = collectDone(state)
                 await saveRealizedSeries(seance.id, done)
-                // total de séries prévues (sur les exos qui ont des séries)
                 const prevues = Object.values(state).reduce((n, arr) => n + arr.length, 0)
                 const ok = await terminerSeance(seance.id, ressenti, null, prevues, done.length)
                 const complet = !(prevues > 0 && done.length < prevues)
@@ -315,6 +352,26 @@ export function Today() {
               }}>
               Marquer comme sautée
             </button>
+
+            {!moveOpen ? (
+              <button className="move-btn" onClick={() => setMoveOpen(true)}>
+                Déplacer / copier à un autre jour
+              </button>
+            ) : (
+              <div className="move-panel">
+                <label className="move-fld">
+                  <span>Nouvelle date</span>
+                  <input type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} />
+                </label>
+                <div className="move-actions">
+                  <button className="primary" onClick={onDeplacerClick}>Valider</button>
+                  <button className="m-cancel" onClick={() => setMoveOpen(false)}>Annuler</button>
+                </div>
+                <div className="move-note">
+                  Si la séance a des données réalisées, on te demandera : déplacer avec les données, ou copier vierge pour la refaire.
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
