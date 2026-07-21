@@ -129,6 +129,79 @@ export async function reactiverSeance(planifieeId: string): Promise<boolean> {
   return !error
 }
 
+// ================= DÉPLACER / COPIER UNE SÉANCE =================
+
+// Y a-t-il déjà une séance à ce jour ? (pour l'avertissement)
+export async function jourOccupe(jour: string, saufId?: string): Promise<boolean> {
+  let q = supabase.from('seances_planifiees').select('id').eq('jour', jour)
+  if (saufId) q = q.neq('id', saufId)
+  const { data } = await q.limit(1)
+  return (data?.length ?? 0) > 0
+}
+
+// Déplace une séance vers un nouveau jour. GARDE la clé (lien import préservé).
+export async function deplacerSeance(planifieeId: string, nouveauJour: string): Promise<boolean> {
+  const { error } = await supabase.from('seances_planifiees')
+    .update({ jour: nouveauJour }).eq('id', planifieeId)
+  if (error) console.error(error)
+  return !error
+}
+
+// Génère une clé de copie unique, dérivée de la nouvelle date.
+async function cleCopieUnique(base: string): Promise<string> {
+  // base ex. "sea-2026-07-28-muscu-a" ; si prise, suffixe -2, -3...
+  const exists = async (c: string) => {
+    const { data } = await supabase.from('seances_planifiees').select('id').eq('cle', c).limit(1)
+    return (data?.length ?? 0) > 0
+  }
+  if (!(await exists(base))) return base
+  let n = 2
+  while (await exists(`${base}-${n}`)) n++
+  return `${base}-${n}`
+}
+
+// slug simple pour reconstruire une clé lisible
+function slug(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+// Copie une séance VIERGE (exos + cibles, sans réalisé) vers un nouveau jour.
+// L'originale reste intacte. Nouvelle clé dérivée de la date.
+export async function copierSeanceVierge(planifieeId: string, nouveauJour: string): Promise<boolean> {
+  // 1) charger l'originale + ses exos
+  const { data: orig, error: e1 } = await supabase
+    .from('seances_planifiees')
+    .select('nom, nature, etiquette, duree_min, distance_km, denivele_m, exos_planifies(exercice_id, ordre, cible, note_coach)')
+    .eq('id', planifieeId).single()
+  if (e1 || !orig) { console.error(e1); return false }
+
+  // 2) nouvelle clé lisible et unique
+  const base = `sea-${nouveauJour}-${slug(orig.nom)}`
+  const cle = await cleCopieUnique(base)
+
+  // 3) créer la nouvelle séance (statut à venir, pas de réalisé)
+  const { data: nouv, error: e2 } = await supabase.from('seances_planifiees').insert({
+    cle, modele_id: null, nom: orig.nom, nature: orig.nature, jour: nouveauJour,
+    etiquette: orig.etiquette ?? 'fixe', statut: 'a_venir',
+    duree_min: orig.duree_min ?? null, distance_km: orig.distance_km ?? null, denivele_m: orig.denivele_m ?? null
+  }).select('id').single()
+  if (e2 || !nouv) { console.error(e2); return false }
+
+  // 4) copier les exos (avec cibles), nouvelles clés dérivées
+  const exos = (orig.exos_planifies ?? []) as any[]
+  if (exos.length) {
+    const rows = exos.map((ex, i) => ({
+      cle: `${cle}-${ex.ordre ?? i + 1}`,
+      seance_id: nouv.id, exercice_id: ex.exercice_id,
+      ordre: ex.ordre ?? i + 1, cible: ex.cible, note_coach: ex.note_coach ?? null
+    }))
+    const { error: e3 } = await supabase.from('exos_planifies').insert(rows)
+    if (e3) { console.error(e3); return false }
+  }
+  return true
+}
+
 // ================= SUIVI : POIDS =================
 
 export async function getWeightSeries(): Promise<Mesure[]> {
@@ -248,10 +321,9 @@ export interface ExoProgress {
   nom: string
   unite: string
   nbSeances: number
-  points: PointSerie[]   // meilleure valeur par jour (charge, ou reps si pas de charge, ou durée)
+  points: PointSerie[]
 }
 
-// Progression par exercice, calculée depuis le réalisé.
 export async function getExoProgressions(): Promise<ExoProgress[]> {
   const { data, error } = await supabase
     .from('series_realisees')
@@ -308,7 +380,7 @@ export function dureeSommeil(coucher: string, reveil: string): number {
   const [hc, mc] = coucher.split(':').map(Number)
   const [hr, mr] = reveil.split(':').map(Number)
   let mins = (hr * 60 + mr) - (hc * 60 + mc)
-  if (mins < 0) mins += 24 * 60          // le coucher était la veille
+  if (mins < 0) mins += 24 * 60
   return Math.round((mins / 60) * 100) / 100
 }
 
