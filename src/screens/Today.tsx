@@ -72,6 +72,30 @@ const num = (s: string): number | null => {
   return Number.isFinite(v) ? v : null
 }
 
+// reps -> entier (jamais de décimale qui casserait l'insert Postgres)
+const toInt = (s: string): number | null => {
+  const v = num(s)
+  return v == null ? null : Math.round(v)
+}
+
+// Durée saisie -> secondes entières. Tolère 75, 1:15, 1'15, 1,15, 1.15
+function parseDureeSec(raw: string): number | null {
+  const s = raw.trim()
+  if (!s) return null
+  const mmss = s.match(/^(\d+)\s*[:'′,.]\s*(\d{1,2})$/)   // mm<sep>ss
+  if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10)
+  const n = parseInt(s, 10)                                // sinon : secondes brutes
+  return Number.isFinite(n) ? n : null
+}
+
+// Aperçu lisible sous le champ gainage (75 -> 1'15)
+function fmtDuree(raw: string): string {
+  const sec = parseDureeSec(raw)
+  if (sec == null) return 's'
+  const m = Math.floor(sec / 60), r = sec % 60
+  return m ? `${m}'${String(r).padStart(2, '0')}` : `${r}s`
+}
+
 export function Today() {
   const { refDate } = useRefDate()
   const [seance, setSeance] = useState<SeancePlanifiee | null>(null)
@@ -124,9 +148,9 @@ export function Today() {
         if (!s.done) return
         out.push({
           exoPlanifieId: exoId, ordre,
-          reps: s.reps ? num(s.reps) : null,
-          charge: s.charge ? num(s.charge) : null,
-          duree_s: s.duree ? num(s.duree) : null
+          reps: s.reps ? toInt(s.reps) : null,
+          charge: s.charge ? num(s.charge) : null,      // kg peut être décimal (52.5)
+          duree_s: s.duree ? parseDureeSec(s.duree) : null
         })
       })
     }
@@ -193,7 +217,7 @@ export function Today() {
             const doneCount = series.filter(s => s.done).length
             const allDone = series.length > 0 && doneCount === series.length
             const isOpen = open[exo.id] ?? false
-            
+
             return (
               <div key={exo.id} className={'exo card' + (allDone ? ' on' : '')}>
                 {/* En-tête cliquable (repli/dépli) */}
@@ -223,9 +247,9 @@ export function Today() {
                           <div className="saisie">
                             {temps ? (
                               <label className="fld">
-                                <input inputMode="numeric" value={s.duree}
+                                <input inputMode="numeric" value={s.duree} placeholder="sec"
                                   onChange={e => updateSerie(exo.id, i, { duree: e.target.value })} />
-                                <span>s</span>
+                                <span>{fmtDuree(s.duree)}</span>
                               </label>
                             ) : (
                               <>

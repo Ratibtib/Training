@@ -251,19 +251,13 @@ export interface ExoProgress {
   points: PointSerie[]   // meilleure valeur par jour (charge, ou reps si pas de charge, ou durée)
 }
 
-// Courbe de poids (déjà: getWeightSeries renvoie les mesures)
-// -> on la réutilise côté écran.
-
 // Progression par exercice, calculée depuis le réalisé.
-// Pour chaque exo réalisé : on prend, par jour, la meilleure série
-// (charge max, sinon reps max, sinon durée max).
 export async function getExoProgressions(): Promise<ExoProgress[]> {
   const { data, error } = await supabase
     .from('series_realisees')
     .select('reps, charge, duree_s, exos_planifies(exercice_id, exercices(nom, unite)), seances_realisees(fait_le, seances_planifiees(jour))')
   if (error) { console.error(error); return [] }
 
-  // regroupe par exercice_id
   const map = new Map<string, ExoProgress & { byDay: Map<string, number> }>()
 
   for (const row of (data ?? []) as any[]) {
@@ -276,7 +270,6 @@ export async function getExoProgressions(): Promise<ExoProgress[]> {
       ?? (row.seances_realisees?.fait_le ?? '').slice(0, 10)
     if (!jour) continue
 
-    // valeur représentative de la série
     const val = row.charge != null ? Number(row.charge)
       : row.reps != null ? Number(row.reps)
       : row.duree_s != null ? Number(row.duree_s)
@@ -298,7 +291,6 @@ export async function getExoProgressions(): Promise<ExoProgress[]> {
       .sort((a, b) => a.jour.localeCompare(b.jour))
     out.push({ exercice_id: e.exercice_id, nom: e.nom, unite: e.unite, nbSeances: points.length, points })
   }
-  // les plus travaillés d'abord
   out.sort((a, b) => b.nbSeances - a.nbSeances)
   return out
 }
@@ -312,7 +304,6 @@ export interface Sommeil {
   duree_h: number | null
 }
 
-// Calcule la durée (heures) entre coucher et réveil, en gérant le passage de minuit.
 export function dureeSommeil(coucher: string, reveil: string): number {
   const [hc, mc] = coucher.split(':').map(Number)
   const [hr, mr] = reveil.split(':').map(Number)
@@ -343,7 +334,6 @@ export async function saveSommeil(
   if (error) console.error(error); return !error
 }
 
-// Série de durées de sommeil (pour la courbe d'évolution)
 export async function getSommeilSeries(): Promise<{ jour: string; valeur: number }[]> {
   const { data, error } = await supabase
     .from('sommeil').select('jour, duree_h').not('duree_h', 'is', null).order('jour', { ascending: true })
