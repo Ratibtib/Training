@@ -481,3 +481,9 @@ body{font-family:var(--f-body);background:var(--surface);color:var(--ink);line-h
 .move-actions{display:flex;gap:8px}
 .move-actions .primary{flex:1;margin:0}
 .move-note{font-size:10.5px;color:var(--ink-faint);margin-top:9px;line-height:1.4}
+
+/* ---- Déplacer/copier : boutons dédiés ---- */
+.move-copy{flex:1;border:1px solid var(--track);background:var(--track-dim);color:var(--track);
+  border-radius:11px;padding:12px;font-family:var(--f-disp);font-weight:600;font-size:14px;
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer}
+.move-cancel-full{width:100%;margin-top:8px;text-align:center}
