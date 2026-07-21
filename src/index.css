@@ -465,3 +465,19 @@ body{font-family:var(--f-body);background:var(--surface);color:var(--ink);line-h
 .sleep-duree{font-family:var(--f-data);font-weight:700;font-size:18px;color:var(--track);
   text-align:center;margin:12px 0 4px}
 .sleep-card .primary{margin-top:8px}
+
+/* ---- Bouton déplacer/copier séance ---- */
+.move-btn{width:100%;margin-top:8px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+  border-radius:11px;padding:11px;font-family:var(--f-data);font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer}
+.move-btn:active{background:var(--surface)}
+.move-panel{margin-top:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px}
+.move-fld{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.move-fld span{font-family:var(--f-data);font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--ink-faint)}
+.move-fld input[type=date]{border:1px solid var(--line);border-radius:10px;padding:11px;
+  font-family:var(--f-data);font-size:15px;font-weight:700;color:var(--ink);background:#fff}
+.move-fld input[type=date]:focus{outline:none;border-color:var(--track)}
+.move-actions{display:flex;gap:8px}
+.move-actions .primary{flex:1;margin:0}
+.move-note{font-size:10.5px;color:var(--ink-faint);margin-top:9px;line-height:1.4}
