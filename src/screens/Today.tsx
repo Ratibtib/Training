@@ -200,22 +200,6 @@ export function Today() {
     setRefDate(moveDate)  // on suit la séance vers sa nouvelle date
   }
 
-  async function onDeplacerClick() {
-    if (!seance) return
-    if (!moveOpen) { setMoveOpen(true); return }
-    // panneau déjà ouvert : on agit selon le réalisé
-    if (aDuRealise()) {
-      const copier = confirm(
-        'Cette séance contient des données réalisées.\n\n' +
-        'OK = créer une COPIE VIERGE à refaire (l’originale reste intacte)\n' +
-        'Annuler = DÉPLACER la séance avec ses données'
-      )
-      await faireDeplacement(copier ? 'copy' : 'move')
-    } else {
-      await faireDeplacement('move')
-    }
-  }
-
   const isToday = refDate === todayISO()
 
   return (
@@ -363,13 +347,24 @@ export function Today() {
                   <span>Nouvelle date</span>
                   <input type="date" value={moveDate} onChange={e => setMoveDate(e.target.value)} />
                 </label>
-                <div className="move-actions">
-                  <button className="primary" onClick={onDeplacerClick}>Valider</button>
-                  <button className="m-cancel" onClick={() => setMoveOpen(false)}>Annuler</button>
-                </div>
-                <div className="move-note">
-                  Si la séance a des données réalisées, on te demandera : déplacer avec les données, ou copier vierge pour la refaire.
-                </div>
+
+                {aDuRealise() ? (
+                  <>
+                    <div className="move-note" style={{ marginTop: 0, marginBottom: 10 }}>
+                      Cette séance contient des données réalisées.
+                    </div>
+                    <div className="move-actions">
+                      <button className="primary" onClick={() => faireDeplacement('move')}>Déplacer</button>
+                      <button className="move-copy" onClick={() => faireDeplacement('copy')}>Copier vierge</button>
+                    </div>
+                    <button className="m-cancel move-cancel-full" onClick={() => setMoveOpen(false)}>Annuler</button>
+                  </>
+                ) : (
+                  <div className="move-actions">
+                    <button className="primary" onClick={() => faireDeplacement('move')}>Déplacer</button>
+                    <button className="m-cancel" onClick={() => setMoveOpen(false)}>Annuler</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
